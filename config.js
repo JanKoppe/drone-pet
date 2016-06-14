@@ -25,7 +25,7 @@ config.drone = {
   imageSize:  null,
 };
 
-config.sterring = {
+config.steering = {
   // Base speed for Movements (0-1)
   speed:      0.1,
   // Speedup if ball is nearly out of viewframe (0-1)
