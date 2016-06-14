@@ -53,9 +53,33 @@ cvstream.on('data', (img) => {
     // visualize with crosshair
     out.line([x-10, y], [x+10, y], [0,255,0]);
     out.line([x, y-10], [x, y+10], [0,255,0]);
+
+    steerTo(x, y);
   }
   out.save('./scratch/crosshairs.png');
 });
 
+var steerTo = (x, y) => {
+  // clear previous movements
+  drone.stop();
+
+  if (x < (config.steering.res.x/2 - config.steering.ignore.x/2)) {
+    debug('turn left');
+    // TODO: work in dynamic speed with config.steering.agility
+    // drone.counterClockwise(config.steering.speed);
+  } else if (x > (config.steering.res.x/2 + config.steering.ignore.x/2)) {
+    debug('turn right');
+    // TODO: work in dynamic speed with config.steering.agility
+    // drone.clockwise(config.steering.speed);
+  }
+
+  if (y < (config.steering.res.y/2 - config.steering.ignore.y/2)) {
+    debug('move down');
+    // drone.up(config.steering.speed);
+  } else if(y > (config.steering.res.y/2 + config.steering.ignore.y/2)) {
+    debug('move up');
+    // drone.down(config.steering.speed);
+  }
+};
 // create & connect png stream to opencv pipeline
 drone.getPngStream().pipe(cvstream);

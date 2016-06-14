@@ -22,7 +22,24 @@ var config = {};
 config.drone = {
   ip:         '192.168.1.1',
   frameRate:  5,
-  imageSize:  null
+  imageSize:  null,
+};
+
+config.sterring = {
+  // Base speed for Movements (0-1)
+  speed:      0.1,
+  // Speedup if ball is nearly out of viewframe (0-1)
+  agility:    0.5,
+  // ignore center of viewframe
+  ignore: {
+    x:        140,
+    y:        120
+  },
+  // resolution of viewframe
+  res: {
+    x:        640,
+    y:        360
+  }
 };
 
 config.filter = {
