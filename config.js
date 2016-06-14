@@ -27,8 +27,10 @@ config.drone = {
 
 config.filter = {
   // Blue, Green, Red
-  low  : [   0,   0,  90],
-  high : [  70,  70, 255]
+  low:        [   0,   0,  90],
+  high:       [  50,  50, 255],
+  dilate:     2,
+  minArea:    5000
 };
 
 module.exports = config;

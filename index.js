@@ -27,11 +27,34 @@ var drone  = require('ar-drone').createClient(config.drone);
 var opencv = require('opencv');
 var cvstream  = new opencv.ImageStream();
 
-cvstream.on('data', (matrix) => {
-  matrix.save('./scratch/drone_raw.png')
-  // filter vor pixels in colour range
-  matrix.inRange(config.filter.low, config.filter.high);
-  matrix.save('./scratch/drone_filter.png');
+cvstream.on('data', (img) => {
+  var out = img.copy();
+  // filter for pixels in colour range
+  img.inRange(config.filter.low, config.filter.high);
+  // edge detection
+  img.canny(0, 100);
+  // dilate to smooth out edge detection
+  img.dilate(config.filter.dilate);
+  // find contours in image
+  let contours = img.findContours();
+  for (let i = 0; i < contours.size(); i++) {
+    // skip too small objects
+    if (contours.area(i) < config.filter.minArea) continue;
+
+    /* calculate mass-center
+     * http://docs.opencv.org/3.1.0/d8/d23/classcv_1_1Moments.html
+     *
+     * This will be the aiming point for the drone.
+     */
+    let m = contours.moments(i);
+    let x = Math.round(m.m10 / m.m00);
+    let y = Math.round(m.m01 / m.m00);
+
+    // visualize with crosshair
+    out.line([x-10, y], [x+10, y], [0,255,0]);
+    out.line([x, y-10], [x, y+10], [0,255,0]);
+  }
+  out.save('./scratch/crosshairs.png');
 });
 
 // create & connect png stream to opencv pipeline
