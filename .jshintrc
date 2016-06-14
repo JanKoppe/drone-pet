@@ -1,0 +1,6 @@
+{
+  "quotmark" : "single",
+  "eqeqeq" : true,
+  "indent" : 2,
+  "esversion" : 6
+}
