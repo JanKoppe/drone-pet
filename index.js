@@ -28,9 +28,11 @@ var opencv = require('opencv');
 var cvstream  = new opencv.ImageStream();
 
 cvstream.on('data', (matrix) => {
-  //do magic in here!
-  matrix.save('./scratch/drone.png');
+  matrix.save('./scratch/drone_raw.png')
+  // filter vor pixels in colour range
+  matrix.inRange(config.filter.low, config.filter.high);
+  matrix.save('./scratch/drone_filter.png');
 });
 
 // create & connect png stream to opencv pipeline
-drone.createPngStream().pipe(cvstream);
+drone.getPngStream().pipe(cvstream);

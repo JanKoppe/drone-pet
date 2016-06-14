@@ -25,4 +25,10 @@ config.drone = {
   imageSize:  null
 };
 
+config.filter = {
+  // Blue, Green, Red
+  low  : [   0,   0,  90],
+  high : [  70,  70, 255]
+};
+
 module.exports = config;
