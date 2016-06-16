@@ -27,12 +27,18 @@ var drone  = require('ar-drone').createClient(config.drone);
 var opencv = require('opencv');
 var cvstream  = new opencv.ImageStream();
 
+// handle for the watchdog Timeout function
+var watchdog;
+
 cvstream.on('data', (img) => {
   var out = img.copy();
+  img.save('./scratch/raw.png');
   // filter for pixels in colour range
   img.inRange(config.filter.low, config.filter.high);
+  img.save('./scratch/inRange.png');
   // edge detection
   img.canny(0, 100);
+  img.save('./scratch/edge.png');
   // dilate to smooth out edge detection
   img.dilate(config.filter.dilate);
   // find contours in image
@@ -60,26 +66,37 @@ cvstream.on('data', (img) => {
 });
 
 var steerTo = (x, y) => {
-  // clear previous movements
-  drone.stop();
-
   if (x < (config.steering.res.x/2 - config.steering.ignore.x/2)) {
     debug('turn left');
     // TODO: work in dynamic speed with config.steering.agility
-    // drone.counterClockwise(config.steering.speed);
+    drone.counterClockwise(config.steering.speed);
   } else if (x > (config.steering.res.x/2 + config.steering.ignore.x/2)) {
     debug('turn right');
     // TODO: work in dynamic speed with config.steering.agility
-    // drone.clockwise(config.steering.speed);
+    drone.clockwise(config.steering.speed);
+  } else {
+    drone.clockwise(0);
   }
 
   if (y < (config.steering.res.y/2 - config.steering.ignore.y/2)) {
     debug('move down');
-    // drone.up(config.steering.speed);
+    drone.up(config.steering.speed);
   } else if(y > (config.steering.res.y/2 + config.steering.ignore.y/2)) {
     debug('move up');
-    // drone.down(config.steering.speed);
+    drone.down(config.steering.speed);
+  } else {
+    drone.down(0);
   }
+
+  // SAFETY - Stop movement after two seconds
+  watchdog = setTimeout(() => {
+    drone.stop();
+  }, 2000);
 };
 // create & connect png stream to opencv pipeline
 drone.getPngStream().pipe(cvstream);
+
+
+// Get the drone in the air. It will just hover for a few seconds
+// until the videostream has been connected and the processing starts
+drone.takeoff();

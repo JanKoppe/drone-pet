@@ -27,13 +27,13 @@ config.drone = {
 
 config.steering = {
   // Base speed for Movements (0-1)
-  speed:      0.1,
+  speed:      0.4,
   // Speedup if ball is nearly out of viewframe (0-1)
   agility:    0.5,
   // ignore center of viewframe
   ignore: {
-    x:        140,
-    y:        120
+    x:        60,
+    y:        40
   },
   // resolution of viewframe
   res: {
@@ -44,10 +44,10 @@ config.steering = {
 
 config.filter = {
   // Blue, Green, Red
-  low:        [   0,   0,  90],
-  high:       [  50,  50, 255],
+  low:        [   0,   0,  70],
+  high:       [  60,  60, 255],
   dilate:     2,
-  minArea:    5000
+  minArea:    2000
 };
 
 module.exports = config;
