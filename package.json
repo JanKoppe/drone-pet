@@ -19,6 +19,7 @@
   "homepage": "https://github.com/JanKoppe/drone-pet#readme",
   "dependencies": {
     "ar-drone": "^0.3.3",
+    "blessed": "^0.1.81",
     "debug": "^2.2.0",
     "opencv": "^5.0.0"
   }

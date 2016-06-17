@@ -31,10 +31,7 @@ config.steering = {
   // Speedup if ball is nearly out of viewframe (0-1)
   agility:    0.5,
   // ignore center of viewframe
-  ignore: {
-    x:        60,
-    y:        40
-  },
+  ignoreRadius: 0.2,
   // resolution of viewframe
   res: {
     x:        640,

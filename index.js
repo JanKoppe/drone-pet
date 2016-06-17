@@ -19,30 +19,100 @@
 // Load configuration
 var config = require('./config');
 var debug  = require('debug')('drone-pet');
-debug(config);
-
 // set up connection to drone
 var drone  = require('ar-drone').createClient(config.drone);
 // setup opencv processing
 var opencv = require('opencv');
 var cvstream  = new opencv.ImageStream();
 
-// handle for the watchdog Timeout function
-var watchdog;
+// TUI library
+var blessed = require('blessed');
+var screen = blessed.screen({
+  smartCSR: true,
+  autoPadding: true
+});
+var objectsBox = blessed.box({
+  tags: true,
+  style: {
+    border: {
+      fg: 'white'
+    }
+  }
+});
+
+var flyingBox = blessed.box({
+  top: '30%',
+  tags: true,
+  style: {
+    border: {
+      fg: 'white'
+    }
+  }
+});
+
+screen.append(objectsBox);
+screen.append(flyingBox);
+
+screen.key('space', () => {
+  if (flying) {
+    drone.land();
+    flying = false;
+  } else {
+    drone.takeoff();
+    flying = true;
+  }
+
+  uiUpdateFlying(flying);
+});
+
+screen.key('w', () => {
+  drone.front(config.steering.speed);
+  setTimeout(() => {
+    drone.front(0);
+  }, 500);
+});
+
+screen.key('s', () => {
+  drone.back(config.steering.speed);
+  setTimeout(() => {
+    drone.front(0);
+  }, 500);
+});
+
+screen.key('a', () => {
+  drone.counterClockwise(config.steering.speed);
+  setTimeout(() => {
+    drone.clockwise(0);
+  }, 500);
+});
+
+screen.key('d', () => {
+  drone.clockwise(config.steering.speed);
+  setTimeout(() => {
+    drone.clockwise(0);
+  }, 500);
+});
+
+// some state variables
+var flying = false;
+
+
+// Quit on Escape, q, or Control-C.
+screen.key(['escape', 'q', 'C-c'], (ch, key) => {
+  drone.land();
+  return process.exit(0);
+});
 
 cvstream.on('data', (img) => {
-  var out = img.copy();
-  img.save('./scratch/raw.png');
   // filter for pixels in colour range
   img.inRange(config.filter.low, config.filter.high);
-  img.save('./scratch/inRange.png');
   // edge detection
   img.canny(0, 100);
-  img.save('./scratch/edge.png');
   // dilate to smooth out edge detection
   img.dilate(config.filter.dilate);
   // find contours in image
   let contours = img.findContours();
+  let objects = [];
   for (let i = 0; i < contours.size(); i++) {
     // skip too small objects
     if (contours.area(i) < config.filter.minArea) continue;
@@ -56,47 +126,107 @@ cvstream.on('data', (img) => {
     let x = Math.round(m.m10 / m.m00);
     let y = Math.round(m.m01 / m.m00);
 
-    // visualize with crosshair
-    out.line([x-10, y], [x+10, y], [0,255,0]);
-    out.line([x, y-10], [x, y+10], [0,255,0]);
-
-    steerTo(x, y);
+    let coords = coordsTranslate({x, y}, config.steering.res.x, config.steering.res.y);
+    coords = coordsDeadzone(coords, config.steering.ignoreRadius);
+    objects.push(coords);
   }
-  out.save('./scratch/crosshairs.png');
+
+  let mean = objectsMean(objects);
+  uiUpdateObjects(mean, objects.length);
+  steerTo(mean, 0.2);
 });
 
-var steerTo = (x, y) => {
-  if (x < (config.steering.res.x/2 - config.steering.ignore.x/2)) {
-    debug('turn left');
-    // TODO: work in dynamic speed with config.steering.agility
-    drone.counterClockwise(config.steering.speed);
-  } else if (x > (config.steering.res.x/2 + config.steering.ignore.x/2)) {
-    debug('turn right');
-    // TODO: work in dynamic speed with config.steering.agility
-    drone.clockwise(config.steering.speed);
-  } else {
-    drone.clockwise(0);
-  }
 
-  if (y < (config.steering.res.y/2 - config.steering.ignore.y/2)) {
-    debug('move down');
-    drone.up(config.steering.speed);
-  } else if(y > (config.steering.res.y/2 + config.steering.ignore.y/2)) {
-    debug('move up');
-    drone.down(config.steering.speed);
-  } else {
-    drone.down(0);
-  }
+var coordsTranslate = (coords, w, h) => {
+  /*
+   *  Translate input x and y values, respective to the width and height of the
+   *  viewport, into vertical and horizontal values in range [-1,1].
+   */
 
-  // SAFETY - Stop movement after two seconds
-  watchdog = setTimeout(() => {
-    drone.stop();
-  }, 2000);
+  // Move coordinate origin to center of viewframe. Coordinates need to be translated
+  coords.x -= w/2;
+  coords.y -= h/2;
+
+  // Scale to [-1,1] range
+  coords.x *= 2/w;
+  coords.y *= 2/h;
+
+  return coords;
 };
+
+var coordsDeadzone = (coords, r) => {
+  /*
+   *  Blank out deadzone with radius r from coordinate origin. This is done to
+   *  avoid jittering when the object is very near to the center.
+   */
+
+  if (Math.sqrt(coords.x * coords.x + coords.y + coords.y) < r) {
+    coords.x = 0.0;
+    coords.y = 0.0;
+  }
+
+  return coords;
+};
+
+var steerTo = (coords, speed) => {
+  if (coords.x > 0.0) {
+    drone.clockwise(speed);
+  } else if (coords.x < 0.0 ){
+    drone.counterClockwise(speed);
+  } else {
+    drone.clockwise(0.0);
+  }
+
+  if (coords.y > 0.0) {
+    drone.down(speed);
+  } else if (coords.y < 0.0) {
+    drone.up(speed);
+  } else {
+    drone.down(0.0);
+  }
+};
+
+var objectsMean = (objects) => {
+  /*
+   *  If calculate the mean of multiple object coordinates
+   */
+
+  var mean = { x: 0.0, y: 0.0 };
+
+  if (objects.length === 0) return mean;
+
+  objects.forEach((coords) => {
+    mean.x += coords.x;
+    mean.y += coords.y;
+  });
+
+  mean.x = mean.x / objects.length;
+  mean.y = mean.y / objects.length;
+  return mean;
+};
+
+var uiUpdateObjects = (mean, count) => {
+  let text = '{red-fg}' + count + '{/red-fg} objects at: \n' +
+      'x: {green-fg}' + mean.x.toFixed(2) + '{/green-fg}' +
+      ', y: {blue-fg}' + mean.y.toFixed(2) + '{/blue-fg}\n';
+
+  objectsBox.setContent(text);
+  screen.render();
+};
+
+var uiUpdateFlying = (flying) => {
+  let text = '';
+  if (flying) text = '{red-bg} !!! FLYING !!!{/red-bg}';
+  else text = '{green-bg} not flying {/green-bg}';
+
+  text += '\n press space to toggle flying';
+  flyingBox.setContent(text);
+  screen.render();
+};
+
 // create & connect png stream to opencv pipeline
 drone.getPngStream().pipe(cvstream);
 
-
-// Get the drone in the air. It will just hover for a few seconds
-// until the videostream has been connected and the processing starts
-drone.takeoff();
+// Initial screen update
+uiUpdateFlying(false);
+uiUpdateObjects({x:0.0,y:0.0}, 0);
