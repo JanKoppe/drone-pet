@@ -62,7 +62,7 @@ screen.key('f', () => {
     flying = true;
   }
 
-  uiUpdateFlying(flying);
+  uiUpdateFlying();
 });
 
 screen.key('r', () => {
@@ -132,6 +132,7 @@ screen.key('escape', () => {
 
 screen.key('c', () => {
   (follow) ? follow = false : follow = true;
+  uiUpdateFlying();
 });
 
 
@@ -271,16 +272,16 @@ var uiUpdateObjects = (mean, count) => {
   screen.render();
 };
 
-var uiUpdateFlying = (flying) => {
+var uiUpdateFlying = () => {
   let text = '';
   if (flying) text = '{red-bg} !!! FLYING !!!{/red-bg}';
   else text = '{green-bg} not flying {/green-bg}';
 
-  if (follow) text += '{blue-bg} following';
+  if (follow) text += '{blue-bg} following {/blue-bg}';
   else text += ' not following';
 
-  text += '\n' + battery + '% battery, ' +altitude + 'm altitude';
-  text += '\n press f to toggle flying, c to enable follow, r to reset';
+  text += '\n\n' + battery + '% battery, ' +altitude + 'm altitude';
+  text += '\n\n press f to toggle flying, c to enable follow, r to reset';
 
   text += '\n q-e lateral, w-s longitudinal, a-d yaw, u-h vertical'
   flyingBox.setContent(text);
