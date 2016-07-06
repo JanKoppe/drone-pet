@@ -23,8 +23,8 @@ var debug  = require('debug')('drone-pet');
 var drone  = require('ar-drone').createClient(config.drone);
 // setup opencv processing
 var opencv = require('opencv');
-var cvstream  = new opencv.ImageStream();
 
+var cvstream  = new opencv.ImageStream();
 // TUI library
 var blessed = require('blessed');
 var screen = blessed.screen({
@@ -53,7 +53,7 @@ var flyingBox = blessed.box({
 screen.append(objectsBox);
 screen.append(flyingBox);
 
-screen.key('space', () => {
+screen.key('f', () => {
   if (flying) {
     drone.land();
     flying = false;
@@ -63,6 +63,24 @@ screen.key('space', () => {
   }
 
   uiUpdateFlying(flying);
+});
+
+screen.key('r', () => {
+  drone.disableEmergency();
+});
+
+screen.key('q', () => {
+  drone.left(config.steering.speed);
+  setTimeout(() => {
+    drone.left(0);
+  }, 500);
+});
+
+screen.key('e', () => {
+  drone.right(config.steering.speed);
+  setTimeout(() => {
+    drone.left(0);
+  }, 500);
 });
 
 screen.key('w', () => {
@@ -93,17 +111,49 @@ screen.key('d', () => {
   }, 500);
 });
 
+screen.key('u', () => {
+  drone.up(config.steering.speed);
+  setTimeout(() => {
+    drone.up(0);
+  }, 500);
+});
+
+screen.key('h', () => {
+  drone.down(config.steering.speed);
+  setTimeout(() => {
+    drone.down(0);
+  }, 500);
+});
+
+screen.key('escape', () => {
+  drone.stop();
+  follow = false;
+});
+
+screen.key('c', () => {
+  (follow) ? follow = false : follow = true;
+});
+
+
 // some state variables
 var flying = false;
-
+var imgproc = 0;
+var battery = 0;
+var altitude = 0;
+var follow = false;
 
 // Quit on Escape, q, or Control-C.
-screen.key(['escape', 'q', 'C-c'], (ch, key) => {
+screen.key('C-c', (ch, key) => {
   drone.land();
   return process.exit(0);
 });
 
+// create & connect png stream to opencv pipeline
+var pngstream = drone.getPngStream();
+pngstream.pipe(cvstream);
+
 cvstream.on('data', (img) => {
+  var crosshair = img.copy();
   // filter for pixels in colour range
   img.inRange(config.filter.low, config.filter.high);
   // edge detection
@@ -128,14 +178,20 @@ cvstream.on('data', (img) => {
 
     let coords = coordsTranslate({x, y}, config.steering.res.x, config.steering.res.y);
     coords = coordsDeadzone(coords, config.steering.ignoreRadius);
-    objects.push(coords);
+    if (coords.x !== 0 && coords.y !== 0) objects.push(coords);
+    crosshair.line([x-5,y],[x+5,y]);
+    crosshair.line([x,y-5],[x,y+5]);
   }
 
   let mean = objectsMean(objects);
-  uiUpdateObjects(mean, objects.length);
-  steerTo(mean, 0.2);
-});
+  crosshair.line([mean.x+5,mean.y],[mean.x-5,mean.y],[0,255,0]);
 
+  crosshair.save('asdf.png');
+  uiUpdateObjects(mean, objects.length);
+  if (follow) {
+    steerTo(mean, config.steering.speed);
+  }
+});
 
 var coordsTranslate = (coords, w, h) => {
   /*
@@ -149,7 +205,7 @@ var coordsTranslate = (coords, w, h) => {
 
   // Scale to [-1,1] range
   coords.x *= 2/w;
-  coords.y *= 2/h;
+  coords.y *= -2/h;
 
   return coords;
 };
@@ -170,7 +226,7 @@ var coordsDeadzone = (coords, r) => {
 
 var steerTo = (coords, speed) => {
   if (coords.x > 0.0) {
-    drone.clockwise(speed);
+    drone.clockwise(speed * 1.5);
   } else if (coords.x < 0.0 ){
     drone.counterClockwise(speed);
   } else {
@@ -178,9 +234,9 @@ var steerTo = (coords, speed) => {
   }
 
   if (coords.y > 0.0) {
-    drone.down(speed);
+    //drone.up(speed);
   } else if (coords.y < 0.0) {
-    drone.up(speed);
+  //  drone.down(speed);
   } else {
     drone.down(0.0);
   }
@@ -208,7 +264,8 @@ var objectsMean = (objects) => {
 var uiUpdateObjects = (mean, count) => {
   let text = '{red-fg}' + count + '{/red-fg} objects at: \n' +
       'x: {green-fg}' + mean.x.toFixed(2) + '{/green-fg}' +
-      ', y: {blue-fg}' + mean.y.toFixed(2) + '{/blue-fg}\n';
+      ', y: {blue-fg}' + mean.y.toFixed(2) + '{/blue-fg}\n' +
+      imgproc + ' frames';
 
   objectsBox.setContent(text);
   screen.render();
@@ -219,13 +276,32 @@ var uiUpdateFlying = (flying) => {
   if (flying) text = '{red-bg} !!! FLYING !!!{/red-bg}';
   else text = '{green-bg} not flying {/green-bg}';
 
-  text += '\n press space to toggle flying';
+  if (follow) text += '{blue-bg} following';
+  else text += ' not following';
+
+  text += '\n' + battery + '% battery, ' +altitude + 'm altitude';
+  text += '\n press f to toggle flying, c to enable follow, r to reset';
+
+  text += '\n q-e lateral, w-s longitudinal, a-d yaw, u-h vertical'
   flyingBox.setContent(text);
   screen.render();
 };
 
-// create & connect png stream to opencv pipeline
-drone.getPngStream().pipe(cvstream);
+
+//pngstream.on('data', (buff) => {
+//  detectfaces(buff);
+//});
+
+// enable demo navdata to receive battery and altitude
+drone.config('general:navdata_demo', 'TRUE');
+
+drone.on('batteryChange', (data) => {
+  battery = data;
+});
+
+drone.on('altitudeChange', (data) => {
+  altitude = data;
+});
 
 // Initial screen update
 uiUpdateFlying(false);
