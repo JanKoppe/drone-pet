@@ -21,7 +21,7 @@ var config = {};
 // configuration for ar-drone createClient.
 config.drone = {
   ip:         '192.168.1.1',
-  frameRate:  5,
+  frameRate:  10,
   imageSize:  null,
 };
 
@@ -31,7 +31,7 @@ config.steering = {
   // Speedup if ball is nearly out of viewframe (0-1)
   agility:    0.5,
   // ignore center of viewframe
-  ignoreRadius: 0.2,
+  ignoreRadius: 0.1,
   // resolution of viewframe
   res: {
     x:        640,
@@ -44,7 +44,7 @@ config.filter = {
   low:        [   0,   0,  70],
   high:       [  60,  60, 255],
   dilate:     2,
-  minArea:    2000
+  minArea:    1200
 };
 
 module.exports = config;
