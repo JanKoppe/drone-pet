@@ -127,6 +127,8 @@ screen.key('h', () => {
 
 screen.key('escape', () => {
   drone.stop();
+  drone.land();
+  flying = false;
   follow = false;
 });
 
@@ -180,8 +182,8 @@ cvstream.on('data', (img) => {
     let coords = coordsTranslate({x, y}, config.steering.res.x, config.steering.res.y);
     coords = coordsDeadzone(coords, config.steering.ignoreRadius);
     if (coords.x !== 0 && coords.y !== 0) objects.push(coords);
-    crosshair.line([x-5,y],[x+5,y]);
-    crosshair.line([x,y-5],[x,y+5]);
+    crosshair.line([x-5,y],[x+5,y],[255,255,0]);
+    crosshair.line([x,y-5],[x,y+5],[255,255,0]);
   }
 
   let mean = objectsMean(objects);
@@ -283,7 +285,7 @@ var uiUpdateFlying = () => {
   text += '\n\n' + battery + '% battery, ' +altitude + 'm altitude';
   text += '\n\n press f to toggle flying, c to enable follow, r to reset';
 
-  text += '\n q-e lateral, w-s longitudinal, a-d yaw, u-h vertical'
+  text += '\n q-e lateral, w-s longitudinal, a-d yaw, u-h vertical, esc panic!';
   flyingBox.setContent(text);
   screen.render();
 };
